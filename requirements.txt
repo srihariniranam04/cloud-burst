@@ -1,0 +1,13 @@
+flask
+flask-sqlalchemy
+flask-login
+flask-cors
+pymysql
+pandas
+requests
+reportlab
+twilio
+python-dotenv
+bcrypt
+cryptography
+python-dateutil
