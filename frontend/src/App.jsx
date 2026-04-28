@@ -1,13 +1,15 @@
 // frontend/src/App.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import "./App.css";
-import Login     from "./Login";
-import PdfButton from "./PdfButton";
+import Login      from "./Login";
+import Register   from "./Register";
+import PdfButton  from "./PdfButton";
 import AnomalyList from "./AnomalyList";
 
 // ── Region mapping ───────────────────────────────────────
@@ -55,12 +57,13 @@ function heatTextColor(v) {
 }
 
 function getCondition(weather) {
-  const rain = weather?.rainfall ?? 0;
-  if (rain > 50) return "rainy";
+  const rain = weather?.rainfall    ?? 0;
+  const temp = weather?.temperature ?? 0;
+  if (rain > 50)  return "rainy";
+  if (temp > 38)  return "sunny";
   return "normal";
 }
 
-// ── Compute 7-day moving average ─────────────────────────
 function addMA7(data, key) {
   return data.map((row, i) => {
     const slice = data.slice(Math.max(0, i - 6), i + 1);
@@ -69,7 +72,6 @@ function addMA7(data, key) {
   });
 }
 
-// ── Normalize city weather row → standard keys ───────────
 function normalizeWeather(row) {
   if (!row) return null;
   return {
@@ -82,14 +84,12 @@ function normalizeWeather(row) {
   };
 }
 
-// ── API helper ───────────────────────────────────────────
 async function apiFetch(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 }
 
-// ── Format seconds as MM:SS ──────────────────────────────
 function formatCountdown(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, "0");
   const s = String(seconds % 60).padStart(2, "0");
@@ -162,6 +162,11 @@ function AlertBanner({ condition, anomalyCount }) {
         ? `${anomalyCount} open anomaly/anomalies require attention.`
         : "Precipitation elevated. Monitor active.",
     },
+    sunny: {
+      cls:"al-sunny", icon:"☀",
+      title:"Extreme Heat Alert",
+      desc:"Temperature exceeds safe threshold. Heat wave conditions detected.",
+  },
   };
   const a = configs[condition] || configs.normal;
   return (
@@ -187,6 +192,11 @@ function WeatherFx({ condition }) {
       title:"Heavy rainfall event in progress",
       desc:"Precipitation intensity monitored. Drainage systems active.",
     },
+    sunny: {
+      icon:"☀️", cls:"pulse",
+      title:"Extreme heat conditions detected",
+      desc:"Temperature critically high. Heat advisory in effect.",
+  },
   };
   const f = configs[condition] || configs.normal;
   const drops = Array.from({ length:18 }, (_, i) => ({
@@ -478,13 +488,12 @@ function AnomalyPanel({ anomalies, user, onAcknowledge }) {
 }
 
 // ─────────────────────────────────────────────────────────
-// MAIN APP
+// DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────
 
-const REFRESH_SECONDS = 10 * 60; // 10 minutes
+const REFRESH_SECONDS = 10 * 60;
 
-export default function App() {
-  const [user,            setUser]            = useState(null);
+function DashboardPage({ user, setUser }) {
   const [cities,          setCities]          = useState([]);
   const [selectedCityId,  setSelectedCityId]  = useState(null);
   const [latestWeather,   setLatestWeather]   = useState(null);
@@ -499,9 +508,7 @@ export default function App() {
   const refreshRef   = useRef(null);
   const countdownRef = useRef(null);
 
-  // ── load cities after login ──────────────────────────
   useEffect(() => {
-    if (!user) return;
     apiFetch("/api/weather/cities")
       .then((data) => {
         const list = (Array.isArray(data) ? data : []).map((c) => ({
@@ -513,9 +520,8 @@ export default function App() {
         if (list.length) setSelectedCityId(list[0].id);
       })
       .catch(console.error);
-  }, [user]);
+  }, []);
 
-  // ── fetch dashboard data for selected city ───────────
   const fetchDashboard = useCallback(async (cityId) => {
     if (!cityId) return;
     setLoading(true);
@@ -553,8 +559,6 @@ export default function App() {
       );
 
       setLastUpdated(new Date().toLocaleTimeString());
-
-      // Reset countdown to full 10 minutes after every fetch
       setCountdown(REFRESH_SECONDS);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
@@ -563,25 +567,19 @@ export default function App() {
     }
   }, []);
 
-  // ── re-fetch when city changes ───────────────────────
   useEffect(() => {
     if (selectedCityId) fetchDashboard(selectedCityId);
   }, [selectedCityId, fetchDashboard]);
 
-  // ── auto-refresh every 10 minutes ───────────────────
   useEffect(() => {
-    if (!user || !selectedCityId) return;
-
-    // Clear any existing timers
+    if (!selectedCityId) return;
     clearInterval(refreshRef.current);
     clearInterval(countdownRef.current);
 
-    // Main refresh interval — 10 minutes
     refreshRef.current = setInterval(() => {
       fetchDashboard(selectedCityId);
     }, REFRESH_SECONDS * 1000);
 
-    // Countdown ticker — every 1 second
     countdownRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev === null || prev <= 1) return REFRESH_SECONDS;
@@ -593,9 +591,8 @@ export default function App() {
       clearInterval(refreshRef.current);
       clearInterval(countdownRef.current);
     };
-  }, [user, selectedCityId, fetchDashboard]);
+  }, [selectedCityId, fetchDashboard]);
 
-  // ── clear timers on logout ───────────────────────────
   const handleLogout = async () => {
     clearInterval(refreshRef.current);
     clearInterval(countdownRef.current);
@@ -603,17 +600,8 @@ export default function App() {
       await fetch("/api/auth/logout", { method:"POST", credentials:"include" });
     } catch (_) {}
     setUser(null);
-    setCities([]);
-    setSelectedCityId(null);
-    setLatestWeather(null);
-    setHistoryData([]);
-    setOverviewData([]);
-    setRecentAnomalies([]);
-    setLastUpdated(null);
-    setCountdown(null);
   };
 
-  // ── acknowledge anomaly ──────────────────────────────
   const handleAcknowledge = async (anomalyId) => {
     try {
       await fetch(`/api/anomalies/${anomalyId}/acknowledge`, {
@@ -625,8 +613,6 @@ export default function App() {
       console.error("Acknowledge error:", err);
     }
   };
-
-  if (!user) return <Login onLoginSuccess={(u) => setUser(u)} />;
 
   const condition     = getCondition(latestWeather);
   const openAnomalies = recentAnomalies.filter((a) => a.status === "open");
@@ -645,7 +631,7 @@ export default function App() {
         selectedId={selectedCityId}
         onChange={(id) => {
           setSelectedCityId(id);
-          setCountdown(REFRESH_SECONDS);   // reset countdown on city change
+          setCountdown(REFRESH_SECONDS);
         }}
       />
       <PdfButton
@@ -678,5 +664,47 @@ export default function App() {
         · Auto-refresh every 10 min
       </footer>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
+// ROOT APP WITH ROUTING
+// ─────────────────────────────────────────────────────────
+
+export default function App() {
+  const [user, setUser] = useState(null);
+
+  console.log("User in App:", user);
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            user
+              ? <Navigate to="/" replace />
+              : <Login onLoginSuccess={(u) => setUser(u)} />
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            user
+              ? <Navigate to="/" replace />
+              : <Register />
+          }
+        />
+        <Route
+          path="/"
+          element={
+            user
+              ? <DashboardPage user={user} setUser={setUser} />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

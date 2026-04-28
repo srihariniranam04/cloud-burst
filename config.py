@@ -14,6 +14,11 @@ class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "development")
     DEBUG = os.getenv("FLASK_DEBUG", "1") == "1"
 
+# --- Session Cookie ---
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False        # True only in HTTPS/production
+    SESSION_COOKIE_HTTPONLY = True
+
     # --- Database ---
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", 3306))

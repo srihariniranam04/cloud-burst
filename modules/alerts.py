@@ -21,17 +21,7 @@ from sqlalchemy import text
 
 def send_email_alert(city_name, date, rainfall, threshold, triggered_by):
     """
-    Sends a cloudburst email alert via Gmail SMTP.
-
-    Args:
-        city_name:    string — name of affected city
-        date:         date   — date of cloudburst
-        rainfall:     float  — recorded rainfall in mm
-        threshold:    float  — dynamic threshold that was breached
-        triggered_by: int    — user_id of Admin who triggered
-
-    Returns:
-        dict: { success, message }
+    Sends a cloudburst email alert via Gmail SMTP to ALL registered users.
     """
     subject = f"🌧️ CLOUDBURST ALERT — {city_name} on {date}"
 
@@ -53,34 +43,67 @@ Immediate action may be required.
 Please review the dashboard for full details.
 """
 
-    try:
-        msg = MIMEMultipart()
-        msg["From"]    = Config.ALERT_FROM_EMAIL
-        msg["To"]      = Config.ALERT_TO_EMAIL
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
+    # Fetch all active users with an email
+    email_query = text("""
+        SELECT id, username, email
+        FROM users
+        WHERE is_active = 1
+        AND email IS NOT NULL
+        AND email != ''
+    """)
 
+    try:
+        with db.engine.connect() as conn:
+            users = conn.execute(email_query).fetchall()
+
+        results = []
         with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT) as server:
             server.starttls()
             server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
-            server.sendmail(
-                Config.ALERT_FROM_EMAIL,
-                Config.ALERT_TO_EMAIL,
-                msg.as_string()
-            )
 
-        # Log success
-        _log_alert(
-            alert_type   = "Email",
-            city_name    = city_name,
-            date         = date,
-            triggered_by = triggered_by,
-            status       = "Sent",
-            message      = f"Email sent to {Config.ALERT_TO_EMAIL}"
-        )
+            for user in users:
+                user_id    = user[0]
+                user_name  = user[1]
+                user_email = user[2]
 
-        print(f"  [EMAIL] ✓ Alert sent for {city_name} on {date}")
-        return {"success": True, "message": "Email sent successfully"}
+                try:
+                    msg = MIMEMultipart()
+                    msg["From"]    = Config.ALERT_FROM_EMAIL
+                    msg["To"]      = user_email
+                    msg["Subject"] = subject
+                    msg.attach(MIMEText(body, "plain"))
+
+                    server.sendmail(
+                        Config.ALERT_FROM_EMAIL,
+                        user_email,
+                        msg.as_string()
+                    )
+
+                    _log_alert(
+                        alert_type   = "Email",
+                        city_name    = city_name,
+                        date         = date,
+                        triggered_by = triggered_by,
+                        status       = "Sent",
+                        message      = f"Email sent to {user_name} ({user_email})"
+                    )
+
+                    print(f"  [EMAIL] ✓ Sent to {user_name} ({user_email})")
+                    results.append({"user": user_name, "success": True})
+
+                except Exception as e:
+                    _log_alert(
+                        alert_type   = "Email",
+                        city_name    = city_name,
+                        date         = date,
+                        triggered_by = triggered_by,
+                        status       = "Failed",
+                        message      = f"Failed for {user_name} ({user_email}): {str(e)}"
+                    )
+                    print(f"  [EMAIL] ✗ Failed for {user_name}: {str(e)}")
+                    results.append({"user": user_name, "success": False})
+
+        return {"success": True, "message": f"Email attempted for {len(users)} users", "results": results}
 
     except smtplib.SMTPAuthenticationError:
         error = "Gmail authentication failed. Check App Password in .env"
@@ -107,8 +130,6 @@ Please review the dashboard for full details.
         )
         print(f"  [EMAIL] ✗ {error}")
         return {"success": False, "message": error}
-
-
 # ============================================================
 # SEND SMS ALERT
 # Uses Twilio Python SDK
@@ -116,17 +137,7 @@ Please review the dashboard for full details.
 
 def send_sms_alert(city_name, date, rainfall, threshold, triggered_by):
     """
-    Sends a cloudburst SMS alert via Twilio.
-
-    Args:
-        city_name:    string — name of affected city
-        date:         date   — date of cloudburst
-        rainfall:     float  — recorded rainfall in mm
-        threshold:    float  — dynamic threshold that was breached
-        triggered_by: int    — user_id of Admin who triggered
-
-    Returns:
-        dict: { success, message }
+    Sends a cloudburst SMS alert via Twilio to ALL registered users.
     """
     sms_body = (
         f"CLOUDBURST ALERT\n"
@@ -137,47 +148,76 @@ def send_sms_alert(city_name, date, rainfall, threshold, triggered_by):
         f"Time: {datetime.now().strftime('%H:%M %d-%m-%Y')}"
     )
 
+    # Fetch all active users with a phone number
+    phone_query = text("""
+        SELECT id, username, phone 
+        FROM users 
+        WHERE is_active = 1 
+        AND phone IS NOT NULL 
+        AND phone != ''
+    """)
+
+    with db.engine.connect() as conn:
+        users = conn.execute(phone_query).fetchall()
+
+    if not users:
+        return {"success": False, "message": "No users with phone numbers found"}
+
     try:
         from twilio.rest import Client
-
         client = Client(
             Config.TWILIO_ACCOUNT_SID,
             Config.TWILIO_AUTH_TOKEN
         )
 
-        message = client.messages.create(
-            body = sms_body,
-            from_= Config.TWILIO_FROM_NUMBER,
-            to   = Config.TWILIO_TO_NUMBER
-        )
+        results = []
+        for user in users:
+            user_id       = user[0]
+            username      = user[1]
+            phone_number  = user[2]
 
-        # Log success
-        _log_alert(
-            alert_type   = "SMS",
-            city_name    = city_name,
-            date         = date,
-            triggered_by = triggered_by,
-            status       = "Sent",
-            message      = f"SMS SID: {message.sid}"
-        )
+            try:
+                message = client.messages.create(
+                    body  = sms_body,
+                    from_ = Config.TWILIO_FROM_NUMBER,
+                    to    = phone_number
+                )
 
-        print(f"  [SMS] ✓ Alert sent for {city_name} on {date}")
-        return {"success": True, "message": "SMS sent successfully"}
+                _log_alert(
+                    alert_type   = "SMS",
+                    city_name    = city_name,
+                    date         = date,
+                    triggered_by = triggered_by,
+                    status       = "Sent",
+                    message      = f"SMS sent to {username} ({phone_number}) SID: {message.sid}"
+                )
+
+                print(f"  [SMS] ✓ Sent to {username} ({phone_number})")
+                results.append({"user": username, "success": True})
+
+            except Exception as e:
+                _log_alert(
+                    alert_type   = "SMS",
+                    city_name    = city_name,
+                    date         = date,
+                    triggered_by = triggered_by,
+                    status       = "Failed",
+                    message      = f"Failed for {username} ({phone_number}): {str(e)}"
+                )
+                print(f"  [SMS] ✗ Failed for {username}: {str(e)}")
+                results.append({"user": username, "success": False})
+
+        success_count = sum(1 for r in results if r["success"])
+        return {
+            "success": success_count > 0,
+            "message": f"SMS sent to {success_count}/{len(users)} users",
+            "details": results
+        }
 
     except Exception as e:
         error = str(e)
-        _log_alert(
-            alert_type   = "SMS",
-            city_name    = city_name,
-            date         = date,
-            triggered_by = triggered_by,
-            status       = "Failed",
-            message      = error
-        )
-        print(f"  [SMS] ✗ {error}")
+        print(f"  [SMS] ✗ Twilio client error: {error}")
         return {"success": False, "message": error}
-
-
 # ============================================================
 # SEND BOTH EMAIL + SMS TOGETHER
 # Main function called from Admin dashboard
