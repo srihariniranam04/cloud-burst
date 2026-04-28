@@ -1,5 +1,6 @@
 // frontend/src/Login.jsx
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";  // add useNavigate
 import "./Login.css";
 
 export default function Login({ onLoginSuccess }) {
@@ -7,6 +8,7 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -29,7 +31,8 @@ export default function Login({ onLoginSuccess }) {
       const data = await res.json();
 
       if (res.ok) {
-        onLoginSuccess(data.user|| data); // { id, username, role }
+        onLoginSuccess({ username: data.username, role: data.role });
+        
       } else {
         setError(data.error || "Invalid credentials. Please try again.");
       }
@@ -45,11 +48,15 @@ export default function Login({ onLoginSuccess }) {
       {/* Animated rain drops — matches your existing theme */}
       <div className="rain-container" aria-hidden="true">
         {Array.from({ length: 30 }).map((_, i) => (
-          <div key={i} className="raindrop" style={{
-            left:             `${Math.random() * 100}%`,
-            animationDelay:   `${Math.random() * 3}s`,
-            animationDuration:`${1.2 + Math.random() * 1.5}s`,
-          }} />
+          <div
+            key={i}
+            className="raindrop"
+            style={{
+              left:             `${Math.random() * 100}%`,
+              animationDelay:   `${Math.random() * 3}s`,
+              animationDuration:`${1.2 + Math.random() * 1.5}s`,
+            }}
+          />
         ))}
       </div>
 
@@ -124,6 +131,9 @@ export default function Login({ onLoginSuccess }) {
           <span className="role-hint analyst">Analyst</span>
           <span className="role-sep">·</span>
           <span className="role-hint viewer">Viewer</span>
+          <p>
+            Don't have an account? <Link to="/register">Create one</Link>
+          </p>
         </div>
       </div>
     </div>

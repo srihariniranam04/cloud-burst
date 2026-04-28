@@ -682,3 +682,22 @@ body {
   border: 1px solid rgba(96, 165, 250, 0.3);
   color: #93c5fd;
 }
+/* ── Sunny Alert Banner ─────────────────────────────────── */
+.al-sunny {
+  background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(239,68,68,0.1));
+  border-left: 4px solid #fbbf24;
+  color: #fef3c7;
+}
+
+/* ── Sunny dashboard background ─────────────────────────── */
+.dash.sunny {
+  background: radial-gradient(ellipse at top, #78350f 0%, #0f172a 70%);
+}
+
+/* ── Sun pulse animation ─────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { transform: scale(1);    opacity: 1;    }
+  50%       { transform: scale(1.2); opacity: 0.85; }
+}
+
+.pulse { animation: pulse 2s ease-in-out infinite; }

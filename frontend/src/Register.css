@@ -1,0 +1,82 @@
+/* Register.css */
+
+.register-container {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: rgba(30, 58, 95, 0.85); /* Semi-transparent dark background */
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.register-container h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  font-size: 1.8rem;
+  color: #60a5fa;
+}
+
+.register-form label {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.register-form input[type="text"],
+.register-form input[type="password"],
+.register-form input[type="tel"] {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+  background-color: #1e3a5f;
+  color: #e0e7ff;
+  box-sizing: border-box;
+  transition: background-color 0.3s ease;
+}
+
+.register-form input[type="text"]:focus,
+.register-form input[type="password"]:focus,
+.register-form input[type="tel"]:focus {
+  outline: none;
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.error-message {
+  color: #f87171;
+  background-color: #b91c1c33;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.register-form button {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #2563eb;
+  border: none;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.register-form button:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.register-form button:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
